@@ -4,11 +4,12 @@ from PIL import Image
 import numpy as np
 from collections import OrderedDict
 import torchvision
+import traceback
 import torchvision.transforms as transforms
 
 import transforms as ext_transforms
 from models.pspnet import PSPNet
-from data.utils import get_files
+from data.utils import get_files, remap
 import argparse
 import utils
 
@@ -50,6 +51,14 @@ color_encoding = OrderedDict([
             ('bicycle', (119, 11, 32))
     ])
 
+full_classes = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                    32, 33, -1)
+
+# The values above are remapped to the following
+new_classes = (0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 5, 0, 0, 0, 6, 0, 7,
+               8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 0, 17, 18, 19, 0)
+
 image_transform = transforms.Compose(
         [transforms.Resize((args.height, args.width)),
          transforms.ToTensor()])
@@ -63,7 +72,6 @@ label_to_rgb = transforms.Compose([
 def predict(model, image, device):
     image = image.to(device)
     model = model.to(device)
-    model.eval()
     while torch.no_grad():
         # Make predictions!
         prediction, _ = model(image)
@@ -91,24 +99,32 @@ if __name__ == '__main__':
     model = PSPNet(num_classes)
     checkpoint = torch.load(args.model_path)
     model = model.load_state_dict(checkpoint['state_dict'])
+    model.eval()
 
     output_img_dir = args.output_img_dir
     if not os.path.exists(output_img_dir):
         os.makedirs(output_img_dir)
 
     for data_path in test_data:
-        image_name =  data_path.split('/')[-1]
-        data = Image.open(data_path)
-        h, w, _ = np.array(data).shape
-        image = image_transform(data)
+        try:
+            image_name = data_path.split('/')[-1].split('_')[:3]
+            new_image_name = ('_').join(image_name) + '*.png'
+            data = Image.open(data_path)
+            h, w, _ = np.array(data).shape
+            image = image_transform(data)
 
-        prediction = predict(model, image, device=device)
+            prediction = predict(model, image, device=device)
 
-        save_png = transforms.Resize(w, h)(torch.ByteTensor(prediction))
-        save_png = torchvision.utils.make_grid(save_png).numpy()
+            save_png = transforms.Resize(w, h)(torch.ByteTensor(prediction))
+            save_png = torchvision.utils.make_grid(save_png).numpy()
+            save_png = remap(save_png, new_classes, full_classes)
+            Image.fromarray(save_png).save(os.path.join(output_img_dir, 'submission', new_image_name))
 
-        Image.fromarray(save_png).save(os.path.join(output_img_dir, 'submission', image_name))
+            if args.visual:
+                color_prediction = utils.batch_transform(prediction.cpu(), label_to_rgb)
+                utils.imshow_batch(image.data.cpu(), color_prediction,
+                                   os.path.join(output_img_dir, 'visual', new_image_name))
+        except Exception as e:
+            traceback.print_exc()
 
-        if args.visual:
-            color_prediction = utils.batch_transform(prediction.cpu(), label_to_rgb)
-            utils.imshow_batch(image.data.cpu(), color_prediction, os.path.join(output_img_dir, 'visual', image_name))
+
