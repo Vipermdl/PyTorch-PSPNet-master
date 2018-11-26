@@ -51,13 +51,12 @@ color_encoding = OrderedDict([
             ('bicycle', (119, 11, 32))
     ])
 
-full_classes = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-                    17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-                    32, 33, -1)
+
+full_classes = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
 
 # The values above are remapped to the following
-new_classes = (0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 5, 0, 0, 0, 6, 0, 7,
-               8, 9, 10, 11, 12, 13, 14, 15, 16, 0, 0, 17, 18, 19, 0)
+new_classes = (0, 7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33)
+
 
 image_transform = transforms.Compose(
         [transforms.Resize((args.height, args.width)),
@@ -117,7 +116,7 @@ if __name__ == '__main__':
 
             save_png = transforms.Resize(w, h)(torch.ByteTensor(prediction))
             save_png = torchvision.utils.make_grid(save_png).numpy()
-            save_png = remap(save_png, new_classes, full_classes)
+            save_png = remap(save_png, full_classes, new_classes)
             Image.fromarray(save_png).save(os.path.join(output_img_dir, 'submission', new_image_name))
 
             if args.visual:
